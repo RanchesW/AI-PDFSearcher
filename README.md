@@ -151,13 +151,13 @@ if text:
 >
 > **Этот код использует следующие компоненты:**
 >
-> Модуль torch для работы с тензорами.
+> + Модуль torch для работы с тензорами.
 > 
-> Модель nlp, которая обрабатывает предложения и создает векторные представления.
+> + Модель nlp, которая обрабатывает предложения и создает векторные представления.
 > 
-> Библиотека numpy для работы с массивами.
+> + Библиотека numpy для работы с массивами.
 > 
-> Библиотека faiss для создания и управления индексом ближайших соседей.
+> + Библиотека faiss для создания и управления индексом ближайших соседей.
 
 ### Создание пользовательского запроса:
 
@@ -201,7 +201,7 @@ if text:
 >
 > **Этот код использует следующие компонент:**
 >
-> Модуль difflib для сравнения схожести строк с помощью SequenceMatcher.
+> + Модуль difflib для сравнения схожести строк с помощью SequenceMatcher.
 
 **Для каждого уникального фрагмента:**
 
@@ -212,66 +212,66 @@ if text:
 
 Соединяет все фрагменты из `filtered_snippets` в одну строку, разделяя их пробелами:
 ```
-combined_snippets = " ".join(filtered_snippets)
+    combined_snippets = " ".join(filtered_snippets)
 ```
 Использует модель `llama_model` для генерации краткого содержания на основе объединенных фрагментов текста. Ограничивает длину генерируемого текста 500 символами:
 ```
-summary = llama_model(combined_snippets, max_length=500)[0]['generated_text']
+    summary = llama_model(combined_snippets, max_length=500)[0]['generated_text']
 ```
 
 Отправляет модель `llama_model` запрос, включающий вопрос и созданное краткое содержание, чтобы получить ответ. Ограничивает длину ответа 500 символами:
 ```
-response = llama_model(f"Вопрос: {query}\nТекст: {summary}\nОтвет:", max_length=500)
+    response = llama_model(f"Вопрос: {query}\nТекст: {summary}\nОтвет:", max_length=500)
 ```
 
 ### Ведение журнала использования ресурсов
 
 ```
-process = psutil.Process(os.getpid())
+    process = psutil.Process(os.getpid())
 ```
 Использует psutil для получения информации о текущем процессе по его идентификатору (PID).
 
 ```
-cpu_percent = process.cpu_percent(interval=1)
+    cpu_percent = process.cpu_percent(interval=1)
 ```
 
 Измеряет процент использования ЦПУ процессом в течение интервала времени (1 секунда).
 
 ```
-memory_info = process.memory_info()
+    memory_info = process.memory_info()
 ```
 
 Извлекает информацию об использовании памяти процессом.
 
 ```
-gpus = GPUtil.getGPUs()
-gpu_info = gpus[0] if gpus else None
+    gpus = GPUtil.getGPUs()
+    gpu_info = gpus[0] if gpus else None
 ```
 
 Использует GPUtil для получения информации о доступных GPU. Если доступен хотя бы один GPU, берет информацию о первом.
 
 ```
-logging.info(f"CPU Usage: {cpu_percent}%")
+    logging.info(f"CPU Usage: {cpu_percent}%")
 ```
 
 Логирует использование ЦПУ
 
 ```
-logging.info(f"Memory Usage: {memory_info.rss / (1024 * 1024)} MB")
+    logging.info(f"Memory Usage: {memory_info.rss / (1024 * 1024)} MB")
 ```
 
 Преобразует использование памяти в мегабайты (MB) и логирует его.
 
 ```
-if gpu_info:
-    logging.info(f"GPU Memory Usage: {gpu_info.memoryUsed} MB / {gpu_info.memoryTotal} MB")
+    if gpu_info:
+        logging.info(f"GPU Memory Usage: {gpu_info.memoryUsed} MB / {gpu_info.memoryTotal} MB")
 ```
 
 Логирует использование GPU (если доступно):
 
 ```
-end_time = time.time()
-logging.info(f"Processing time: {end_time - start_time} seconds")
+    end_time = time.time()
+    logging.info(f"Processing time: {end_time - start_time} seconds")
 ```
 
 Измеряет и логирует общее время выполнения процесса.
@@ -280,15 +280,15 @@ logging.info(f"Processing time: {end_time - start_time} seconds")
 >
 > **Этот код использует следующие компоненты:**
 >
-> Модуль psutil для получения информации о ЦПУ и памяти.
+> + Модуль psutil для получения информации о ЦПУ и памяти.
 > 
-> Модуль GPUtil для получения информации о GPU.
+> + Модуль GPUtil для получения информации о GPU.
 > 
-> Модуль logging для логирования информации.
+> + Модуль logging для логирования информации.
 > 
-> Модуль time для измерения времени выполнения.
+> + Модуль time для измерения времени выполнения.
 > 
-> Модуль flask (предполагается) для возврата JSON ответа с использованием jsonify.
+> + Модуль flask (предполагается) для возврата JSON ответа с использованием jsonify.
 
 
 
