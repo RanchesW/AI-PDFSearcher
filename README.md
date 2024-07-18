@@ -11,17 +11,17 @@
 Тут я написал функцию которая должна отделять текст от фотографии с помощью **Tesseract**, также добавив расширения в плане языков, теперь библиотека может читать русский также как и английский язык:
 
 ```
-import pytesseract
-
-def extract_text_from_image(image_path):
-    try:
-        image = Image.open(image_path)
-        text = pytesseract.image_to_string(image, lang='rus+eng')
-        print(f"Extracted text from image: {text[:200]}...")
-        return text
-    except Exception as e:
-        print(f"Failed to extract text from image: {e}")
-        return None
+    import pytesseract
+    
+    def extract_text_from_image(image_path):
+        try:
+            image = Image.open(image_path)
+            text = pytesseract.image_to_string(image, lang='rus+eng')
+            print(f"Extracted text from image: {text[:200]}...")
+            return text
+        except Exception as e:
+            print(f"Failed to extract text from image: {e}")
+            return None
 ```
 
 В дальнейшем был написан кусок кода который позволяет работать функции сверху, а именно была использована библиотека Fitz/PyMuPDF для просмотра, рендеринга и инструментов для работы с такими форматами как PDF, XPS, OpenXPS, CBZ, EPUB и FB2.
@@ -70,19 +70,19 @@ def extract_text_from_image(image_path):
 
 1. Подготавливает список предложений из текста:
 ```
-sentences = [sent.strip() for sent in cleaned_text.split('.') if sent.strip()]
+    sentences = [sent.strip() for sent in cleaned_text.split('.') if sent.strip()]
 ```
 Разбивает текст `cleaned_text` на предложения по точке и удаляет пустые строки и пробелы.
 
 2. Создает векторное представление для каждого предложения:
 ```
-sentence_vectors = []
-for sentence in sentences:
-    vec = torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten()
-    if vec.ndim == 1:
-        sentence_vectors.append(vec)
-    else:
-        print(f"Skipping sentence due to incorrect vector shape: {sentence}")
+    sentence_vectors = []
+    for sentence in sentences:
+        vec = torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten()
+        if vec.ndim == 1:
+            sentence_vectors.append(vec)
+        else:
+            print(f"Skipping sentence due to incorrect vector shape: {sentence}")
 ```
 **Для каждого предложения:**
 
@@ -93,23 +93,23 @@ for sentence in sentences:
 3. Проверяет, удалось ли векторизовать предложения:
   
 ```
-if len(sentence_vectors) == 0:
-    return jsonify({"summary": "Failed to vectorize sentences."})
+    if len(sentence_vectors) == 0:
+        return jsonify({"summary": "Failed to vectorize sentences."})
 ```
 
 4. Преобразует список векторов в массив numpy:
 
 ```
-sentence_vectors = np.array(sentence_vectors)
-print(f"Shape of sentence_vectors: {sentence_vectors.shape}")
+    sentence_vectors = np.array(sentence_vectors)
+    print(f"Shape of sentence_vectors: {sentence_vectors.shape}")
 ```
 
 5. Создает и добавляет векторы в FAISS индекс:
 
 ```
-dimension = sentence_vectors.shape[1]
-index = faiss.IndexFlatL2(dimension)
-index.add(sentence_vectors)
+    dimension = sentence_vectors.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(sentence_vectors)
 ```
 - Определяет размерность векторов.
 - Создает индекс FAISS для поиска по близости (`IndexFlatL2`).
@@ -118,30 +118,62 @@ index.add(sentence_vectors)
 ### Создание пользовательского запроса:
 
 ```
-query_vector = torch.tensor(nlp(query)).mean(dim=1).numpy().flatten().reshape(1, -1)
-print(f"Query vector shape: {query_vector.shape}")
+    query_vector = torch.tensor(nlp(query)).mean(dim=1).numpy().flatten().reshape(1, -1)
+    print(f"Query vector shape: {query_vector.shape}")
 ```
 ### Выполнения поиск в FAISS индексе
 ```
-k = 10  # number of top relevant results to retrieve
+    k = 10  # number of top relevant results to retrieve
 ```
 
 Устанавливает значение k равным 10, что означает, что будут извлекаться 10 наиболее релевантных результатов.
 
 ```
-distances, indices = index.search(query_vector, k)
+    distances, indices = index.search(query_vector, k)
 ```
 
 Использует метод search индекса FAISS для поиска ближайших k векторов к query_vector. Возвращает расстояния до этих векторов и их индексы.
 
 ```
-relevant_snippets = [sentences[i] for i in indices[0]]
+    relevant_snippets = [sentences[i] for i in indices[0]]
 ```
 Использует индексы, возвращенные FAISS, для извлечения соответствующих предложений из списка sentences.
 
-###
-``` 
-```                                                                                                                                                                                                                                                                              
+### Уникальность и непохожесть фрагментов
+```
+    import difflib
+
+    # Ensure unique and non-similar snippets
+    unique_snippets = list(dict.fromkeys(relevant_snippets))
+    filtered_snippets = []
+    for snippet in unique_snippets:
+        if not any(difflib.SequenceMatcher(None, snippet, filtered_snippet).ratio() > 0.7 for filtered_snippet in filtered_snippets):
+            filtered_snippets.append(snippet)
+```
+
+Использует словарь для удаления дубликатов из списка `relevant_snippets` и сохраняет только уникальные фрагменты текста.
+
+**Для каждого уникального фрагмента:**
+
+- Проверяет, не является ли он слишком похожим (более чем на 70%) на уже добавленные фрагменты в filtered_snippets.
+- Если фрагмент не слишком похож, добавляет его в filtered_snippets.
+
+### Создание резюме и генерация ответ
+
+Соединяет все фрагменты из `filtered_snippets` в одну строку, разделяя их пробелами:
+```
+combined_snippets = " ".join(filtered_snippets)
+```
+Использует модель `llama_model` для генерации краткого содержания на основе объединенных фрагментов текста. Ограничивает длину генерируемого текста 500 символами:
+```
+summary = llama_model(combined_snippets, max_length=500)[0]['generated_text']
+```
+
+Отправляет модель `llama_model` запрос, включающий вопрос и созданное краткое содержание, чтобы получить ответ. Ограничивает длину ответа 500 символами:
+```
+response = llama_model(f"Вопрос: {query}\nТекст: {summary}\nОтвет:", max_length=500)
+```
+                                                                                                                                                                                                                                                                            
 ### Веб-интерфейс:
 
 Позволяет пользователям загружать PDF-файлы и отправлять запросы о их содержимом.
