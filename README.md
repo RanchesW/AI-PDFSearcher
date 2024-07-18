@@ -35,30 +35,35 @@ except Exception as e:
 
 > [!NOTE]  
 > Этот код использует следующие компоненты:
-
+>
 > Библиотека pytesseract для оптического распознавания текста (OCR).
-
+> 
 > Библиотека PIL (Pillow) для работы с изображениями (импортируется через Image).
 
 В дальнейшем мною был написан кусок кода который позволяет работать функции сверху, а именно была использована библиотека Fitz/PyMuPDF для просмотра, рендеринга и инструментов для работы с такими форматами как PDF, XPS, OpenXPS, CBZ, EPUB и FB2.
 
 ```
-    pdf_document = fitz.open(temp_pdf_path)
-    for page_num in range(len(pdf_document)):
-        page = pdf_document.load_page(page_num)
-        images = page.get_images(full=True)
-        for img_index, img in enumerate(images):
-            xref = img[0]
-            base_image = pdf_document.extract_image(xref)
-            image_bytes = base_image["image"]
-            image_ext = base_image["ext"]
-            image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
-            with open(image_path, "wb") as image_file:
-                image_file.write(image_bytes)
+pdf_document = fitz.open(temp_pdf_path)
+```
 
-            text = extract_text_from_image(image_path)
-            if text:
-                combined_text += " " + text
+Открывает PDF-документ, находящийся по пути temp_pdf_path, с использованием библиотеки PyMuPDF (импортируемой как fitz).
+
+```
+for page_num in range(len(pdf_document)):
+    page = pdf_document.load_page(page_num)
+```
+Проходит по каждой странице PDF-документа, загружая страницу по номеру.
+
+```
+images = page.get_images(full=True)
+for img_index, img in enumerate(images):
+    xref = img[0]
+    base_image = pdf_document.extract_image(xref)
+    image_bytes = base_image["image"]
+    image_ext = base_image["ext"]
+    image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
+    with open(image_path, "wb") as image_file:
+        image_file.write(image_bytes)
 ```
 
 **Для каждого изображения:**
@@ -67,6 +72,24 @@ except Exception as e:
 - Получает байты изображения и его расширение.
 - Формирует путь для сохранения изображения.
 - Сохраняет изображение в файл по указанному пути.
+
+```
+text = extract_text_from_image(image_path)
+if text:
+    combined_text += " " + text
+```
+
+Использует функцию extract_text_from_image для извлечения текста из сохраненных изображений. Если текст найден, добавляет его к переменной combined_text.
+
+> [!NOTE]
+> 
+>Этот код использует следующие компоненты:
+>
+>Библиотека PyMuPDF (fitz) для работы с PDF-документами и извлечения изображений.
+>
+>Библиотека pytesseract для оптического распознавания текста (OCR).
+>
+>Библиотека PIL (Pillow) для работы с изображениями.
 
 ### Хранения PDF-файлов во временном хранилище:
 
