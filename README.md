@@ -1,6 +1,6 @@
 # AI-PDFSearcher
 
-Моё веб-приложение на **Flask** использует различные модели машинного обучения для анализа текста в **PDF-документах**. Оно поддерживает функционал извлечения текста как напрямую из **PDF**, так и из изображений внутри них, ответы на вопросы, основанные на тексте, и создание резюме текста.
+Веб-приложение на **Flask** использует различные модели машинного обучения для анализа текста в **PDF-документах**. Оно поддерживает функционал извлечения текста как напрямую из **PDF**, так и из изображений внутри них, ответы на вопросы, основанные на тексте, и создание резюме текста.
 
 ## Основные функции и рабочий процесс:
 
@@ -26,9 +26,9 @@
 - Возвращает извлеченный текст.
 
 ```
-except Exception as e:
-    print(f"Failed to extract text from image: {e}")
-    return None
+    except Exception as e:
+        print(f"Failed to extract text from image: {e}")
+        return None
 ```
 
 Если возникает ошибка при открытии изображения или извлечении текста, печатает сообщение об ошибке и возвращает `None`.
@@ -36,27 +36,27 @@ except Exception as e:
 В дальнейшем мною был написан кусок кода который позволяет работать функции сверху, а именно была использована библиотека Fitz/PyMuPDF для просмотра, рендеринга и инструментов для работы с такими форматами как PDF, XPS, OpenXPS, CBZ, EPUB и FB2.
 
 ```
-pdf_document = fitz.open(temp_pdf_path)
+    pdf_document = fitz.open(temp_pdf_path)
 ```
 
 Открывает PDF-документ, находящийся по пути temp_pdf_path, с использованием библиотеки PyMuPDF (импортируемой как fitz).
 
 ```
-for page_num in range(len(pdf_document)):
-    page = pdf_document.load_page(page_num)
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)
 ```
 Проходит по каждой странице PDF-документа, загружая страницу по номеру.
 
 ```
-images = page.get_images(full=True)
-for img_index, img in enumerate(images):
-    xref = img[0]
-    base_image = pdf_document.extract_image(xref)
-    image_bytes = base_image["image"]
-    image_ext = base_image["ext"]
-    image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
-    with open(image_path, "wb") as image_file:
-        image_file.write(image_bytes)
+    images = page.get_images(full=True)
+    for img_index, img in enumerate(images):
+        xref = img[0]
+        base_image = pdf_document.extract_image(xref)
+        image_bytes = base_image["image"]
+        image_ext = base_image["ext"]
+        image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
+        with open(image_path, "wb") as image_file:
+            image_file.write(image_bytes)
 ```
 
 **Для каждого изображения:**
@@ -67,9 +67,9 @@ for img_index, img in enumerate(images):
 - Сохраняет изображение в файл по указанному пути.
 
 ```
-text = extract_text_from_image(image_path)
-if text:
-    combined_text += " " + text
+    text = extract_text_from_image(image_path)
+    if text:
+        combined_text += " " + text
 ```
 
 Использует функцию extract_text_from_image для извлечения текста из сохраненных изображений. Если текст найден, добавляет его к переменной combined_text.
@@ -103,20 +103,20 @@ if text:
 Удаляет временный PDF-файл, расположенный по пути temp_pdf_path:
 
 ```
-os.remove(temp_pdf_path)
+    os.remove(temp_pdf_path)
 ```
 
 Удаляет временный каталог, расположенный по пути temp_dir:
 
 ```
-os.rmdir(temp_dir)
+    os.rmdir(temp_dir)
 ```
 
 Проверяет, является ли переменная combined_text пустой или состоит только из пробелов. Если это так, возвращает JSON-ответ с сообщением о том, что в документе не найдено релевантной информации:
 
 ```
-if not combined_text.strip():
-    return jsonify({"summary": "No relevant information found in the document."})
+    if not combined_text.strip():
+        return jsonify({"summary": "No relevant information found in the document."})
 ```
 
 ### LLaMA для очистки и исправления текста 
@@ -124,7 +124,7 @@ if not combined_text.strip():
 Используйется модель LLaMA для очистки и исправления текста на основе переменной combined_text. Ограничивает длину генерируемого текста 500 символами:
 
 ```
-cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
+    cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
 ```
 
 ### Подготовка индекса FAISS:
