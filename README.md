@@ -7,10 +7,10 @@
 ### Извлечение текста из PDF и изображений:
 
 Для извлечения текста я использую довольн известную библиотеку которая позволяет распознавать и “читать” текст, встроенный в изображения. Python-tesseract - это инструмент оптического распознавания символов (OCR) для python.
+```
+import pytesseract
 
-`import pytesseract`
-
-`def extract_text_from_image(image_path):
+def extract_text_from_image(image_path):
     try:
         image = Image.open(image_path)
         text = pytesseract.image_to_string(image, lang='rus+eng')
@@ -18,8 +18,8 @@
         return text
     except Exception as e:
         print(f"Failed to extract text from image: {e}")
-        return None`
-        
+        return None
+```        
 ### Анализ текста с предварительно обученными моделями:
 
 qa_model: Модель для ответа на вопросы, которая может предоставлять ответы на вопросы, основанные на контексте, предоставленном из текста PDF.
