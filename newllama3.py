@@ -5,7 +5,7 @@ import tempfile
 import torch
 import faiss
 import numpy as np
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer
 from PIL import Image
 import pytesseract
 import logging
@@ -22,7 +22,8 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Load LLaMA 13B model for text generation and correction
-llama_model = pipeline('text-generation', model="Replete-AI/Llama-3-13B")  # Update with the actual model path
+llama_model = pipeline('text-generation', model="Replete-AI/Llama-3-11.5B-V2")
+tokenizer = AutoTokenizer.from_pretrained("Replete-AI/Llama-3-11.5B-V2")
 nlp = pipeline('feature-extraction', model="sberbank-ai/ruBert-base", tokenizer="sberbank-ai/ruBert-base")
 
 def extract_text_from_image(image_path):
@@ -62,55 +63,52 @@ def analyze_pdf():
 
     combined_text = ""
 
-    # Extract images from PDF
-    pdf_document = fitz.open(temp_pdf_path)
-    image_paths = []
-    for page_num in range(len(pdf_document)):
-        page = pdf_document.load_page(page_num)
-        images = page.get_images(full=True)
-        for img_index, img in enumerate(images):
-            xref = img[0]
-            base_image = pdf_document.extract_image(xref)
-            image_bytes = base_image["image"]
-            image_ext = base_image["ext"]
-            image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
-            with open(image_path, "wb") as image_file:
-                image_file.write(image_bytes)
-            image_paths.append(image_path)
+    try:
+        # Extract images from PDF
+        with fitz.open(temp_pdf_path) as pdf_document:
+            image_paths = []
+            for page_num in range(len(pdf_document)):
+                page = pdf_document.load_page(page_num)
+                images = page.get_images(full=True)
+                for img_index, img in enumerate(images):
+                    xref = img[0]
+                    base_image = pdf_document.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+                    image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
+                    with open(image_path, "wb") as image_file:
+                        image_file.write(image_bytes)
+                    image_paths.append(image_path)
 
-    # Use ThreadPoolExecutor to parallelize text extraction from images
-    with ThreadPoolExecutor() as executor:
-        results = executor.map(extract_text_from_image, image_paths)
-        combined_text = " ".join(filter(None, results))
-
-    # Clean up temporary files
-    os.remove(temp_pdf_path)
-    shutil.rmtree(temp_dir)
+            # Use ThreadPoolExecutor to parallelize text extraction from images
+            with ThreadPoolExecutor() as executor:
+                results = executor.map(extract_text_from_image, image_paths)
+                combined_text = " ".join(filter(None, results))
+    finally:
+        # Clean up temporary files
+        shutil.rmtree(temp_dir)
 
     if not combined_text.strip():
         return jsonify({"summary": "No relevant information found in the document."})
 
-    # Use LLaMA model to clean and correct the text
-    cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
+    # Tokenize and prepare for generation
+    input_ids = tokenizer.encode(combined_text, return_tensors="pt")
+    max_new_tokens = max(1, 500 - input_ids.shape[1])  # Ensure max_new_tokens is always at least 1
+
+    
+    # Generate cleaned text
+    if max_new_tokens > 0:
+        cleaned_text = llama_model(combined_text, truncation=True, max_length=input_ids.shape[1] + max_new_tokens)[0]['generated_text']
+    else:
+        cleaned_text = combined_text  # Fallback to the original text if no new tokens can be generated
 
     # Prepare FAISS index
     sentences = [sent.strip() for sent in cleaned_text.split('.') if sent.strip()]
-    sentence_vectors = []
-    for sentence in sentences:
-        vec = torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten()
-        if vec.ndim == 1:
-            sentence_vectors.append(vec)
-        else:
-            logging.warning(f"Skipping sentence due to incorrect vector shape: {sentence}")
-
+    sentence_vectors = np.array([torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten() for sentence in sentences if sentence])
     if len(sentence_vectors) == 0:
         return jsonify({"summary": "Failed to vectorize sentences."})
 
-    sentence_vectors = np.array(sentence_vectors)
-    logging.info(f"Shape of sentence_vectors: {sentence_vectors.shape}")
-
-    dimension = sentence_vectors.shape[1]
-    index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexFlatL2(sentence_vectors.shape[1])
     index.add(sentence_vectors)
 
     # Query vector
@@ -118,8 +116,7 @@ def analyze_pdf():
     logging.info(f"Query vector shape: {query_vector.shape}")
 
     # Search in FAISS index
-    k = 10  # number of top relevant results to retrieve
-    distances, indices = index.search(query_vector, k)
+    _, indices = index.search(query_vector, 10)
     relevant_snippets = [sentences[i] for i in indices[0]]
 
     # Ensure unique and non-similar snippets
@@ -130,10 +127,8 @@ def analyze_pdf():
             filtered_snippets.append(snippet)
 
     # Create summary and generate answer
-    combined_snippets = " ".join(filtered_snippets)
-    summary = llama_model(combined_snippets, max_length=500)[0]['generated_text']
-    response = llama_model(f"Вопрос: {query}\nТекст: {summary}\nОтвет:", max_length=500)
-    answer = response[0]['generated_text']
+    summary = ' '.join(filtered_snippets)
+    final_response = llama_model(f"Вопрос: {query}\nТекст: {summary}\nОтвет:", max_length=500)[0]['generated_text']
 
     # Logging resource usage
     process = psutil.Process(os.getpid())
@@ -150,7 +145,7 @@ def analyze_pdf():
     end_time = time.time()
     logging.info(f"Processing time: {end_time - start_time} seconds")
 
-    return jsonify({"answer": answer})
+    return jsonify({"answer": final_response})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
