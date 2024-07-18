@@ -47,10 +47,15 @@ def extract_text_from_image(image_path):
 
 ### Хранения PDF-файлов во временном хранилище:
 
+    import tempfile
+    
     temp_dir = tempfile.mkdtemp()
     temp_pdf_path = os.path.join(temp_dir, pdf_file.filename)
     pdf_file.save(temp_pdf_path)
 
+Функция `tempfile.mkdtemp()` создает временный каталог и возвращает путь к нему.
+С помощью функции `os.path.join` формируется полный путь к временному **PDF-файлу**, используя имя исходного файла `pdf_file.filename` и путь к временному каталогу `temp_dir`.
+Используя метод `save` объекта `pdf_file`, PDF-файл сохраняется по сформированному временному пути `temp_pdf_path`.
 
 ### Анализ текста с предварительно обученными моделями:
 
