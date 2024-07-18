@@ -119,12 +119,13 @@ if not combined_text.strip():
     return jsonify({"summary": "No relevant information found in the document."})
 ```
 
-### Используйется модель LLaMA для очистки и исправления текста на основе переменной combined_text. Ограничивает длину генерируемого текста 500 символами:
+### LLaMA для очистки и исправления текста 
+
+Используйется модель LLaMA для очистки и исправления текста на основе переменной combined_text. Ограничивает длину генерируемого текста 500 символами:
 
 ```
 cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
 ```
-
 
 ### Подготовка индекса FAISS:
 
