@@ -128,14 +128,9 @@ cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
 
 ### Подготовка индекса FAISS:
 
-1. Подготавливает список предложений из текста:
+1.  Преобразование предложений в векторы:
 ```
     sentences = [sent.strip() for sent in cleaned_text.split('.') if sent.strip()]
-```
-Разбивает текст `cleaned_text` на предложения по точке и удаляет пустые строки и пробелы.
-
-2. Создает векторное представление для каждого предложения:
-```
     sentence_vectors = []
     for sentence in sentences:
         vec = torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten()
@@ -143,6 +138,14 @@ cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
             sentence_vectors.append(vec)
         else:
             print(f"Skipping sentence due to incorrect vector shape: {sentence}")
+
+```
+Разбивает текст `cleaned_text` на предложения по точке и удаляет пустые строки и пробелы.
+
+2. Преобразование запроса в вектор:
+```
+    query_vector = torch.tensor(nlp(query)).mean(dim=1).numpy().flatten().reshape(1, -1)
+    print(f"Query vector shape: {query_vector.shape}")
 ```
 **Для каждого предложения:**
 
@@ -195,12 +198,19 @@ cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
     query_vector = torch.tensor(nlp(query)).mean(dim=1).numpy().flatten().reshape(1, -1)
     print(f"Query vector shape: {query_vector.shape}")
 ```
-_nlp(query) обрабатывает текстовый запрос и преобразует его в набор векторных представлений.
-torch.tensor(...) преобразует результат в тензор PyTorch.
-mean(dim=1) вычисляет среднее значение вдоль первого измерения (если результат многомерный, это обычно для объединения векторов слов в одно представление).
-numpy() преобразует тензор PyTorch в массив NumPy.
-flatten() преобразует многомерный массив в одномерный.
-reshape(1, -1) изменяет форму массива на 2D, где первая размерность равна 1 (это необходимо для поиска в FAISS, который ожидает 2D массив для поиска ближайших соседей)._
+
+_nlp(query) обрабатывает текстовый запрос и преобразует его в набор векторных представлений._
+
+_torch.tensor(...) преобразует результат в тензор PyTorch._
+
+_mean(dim=1) вычисляет среднее значение вдоль первого измерения (если результат многомерный, это обычно для объединения векторов слов в одно представление)._
+
+_numpy() преобразует тензор PyTorch в массив NumPy._
+
+_flatten() преобразует многомерный массив в одномерный._
+
+_reshape(1, -1) изменяет форму массива на 2D, где первая размерность равна 1 (это необходимо для поиска в FAISS, который ожидает 2D массив для поиска ближайших соседей)._
+
 
 ### Выполнения поиск в FAISS индексе
 
