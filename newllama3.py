@@ -1,4 +1,5 @@
 import os
+import shutil
 from flask import Flask, request, jsonify, send_from_directory, render_template
 import tempfile
 import torch
@@ -10,6 +11,9 @@ import pytesseract
 import logging
 import time
 import fitz  # PyMuPDF
+import difflib
+import psutil
+import GPUtil
 from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
@@ -18,17 +22,17 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Load LLaMA 13B model for text generation and correction
-llama_model = pipeline('text-generation', model="path_to_llama_13B_model")  # Update with the actual model path
+llama_model = pipeline('text-generation', model="Replete-AI/Llama-3-13B")  # Update with the actual model path
 nlp = pipeline('feature-extraction', model="sberbank-ai/ruBert-base", tokenizer="sberbank-ai/ruBert-base")
 
 def extract_text_from_image(image_path):
     try:
         image = Image.open(image_path)
         text = pytesseract.image_to_string(image, lang='rus+eng')
-        print(f"Extracted text from image: {text[:200]}...")
+        logging.info(f"Extracted text from image: {text[:200]}...")
         return text
     except Exception as e:
-        print(f"Failed to extract text from image: {e}")
+        logging.error(f"Failed to extract text from image: {e}")
         return None
 
 @app.route('/')
@@ -42,8 +46,8 @@ def static_file(path):
 @app.route('/analyze', methods=['POST'])
 def analyze_pdf():
     start_time = time.time()
-    print("Received files:", request.files)
-    print("Received form data:", request.form)
+    logging.info("Received files: %s", request.files)
+    logging.info("Received form data: %s", request.form)
 
     pdf_file = request.files.get('file')
     query = request.form.get('query')
@@ -60,6 +64,7 @@ def analyze_pdf():
 
     # Extract images from PDF
     pdf_document = fitz.open(temp_pdf_path)
+    image_paths = []
     for page_num in range(len(pdf_document)):
         page = pdf_document.load_page(page_num)
         images = page.get_images(full=True)
@@ -71,14 +76,16 @@ def analyze_pdf():
             image_path = os.path.join(temp_dir, f"image{page_num+1}_{img_index+1}.{image_ext}")
             with open(image_path, "wb") as image_file:
                 image_file.write(image_bytes)
+            image_paths.append(image_path)
 
-            text = extract_text_from_image(image_path)
-            if text:
-                combined_text += " " + text
+    # Use ThreadPoolExecutor to parallelize text extraction from images
+    with ThreadPoolExecutor() as executor:
+        results = executor.map(extract_text_from_image, image_paths)
+        combined_text = " ".join(filter(None, results))
 
     # Clean up temporary files
     os.remove(temp_pdf_path)
-    os.rmdir(temp_dir)
+    shutil.rmtree(temp_dir)
 
     if not combined_text.strip():
         return jsonify({"summary": "No relevant information found in the document."})
@@ -94,13 +101,13 @@ def analyze_pdf():
         if vec.ndim == 1:
             sentence_vectors.append(vec)
         else:
-            print(f"Skipping sentence due to incorrect vector shape: {sentence}")
+            logging.warning(f"Skipping sentence due to incorrect vector shape: {sentence}")
 
     if len(sentence_vectors) == 0:
         return jsonify({"summary": "Failed to vectorize sentences."})
 
     sentence_vectors = np.array(sentence_vectors)
-    print(f"Shape of sentence_vectors: {sentence_vectors.shape}")
+    logging.info(f"Shape of sentence_vectors: {sentence_vectors.shape}")
 
     dimension = sentence_vectors.shape[1]
     index = faiss.IndexFlatL2(dimension)
@@ -108,7 +115,7 @@ def analyze_pdf():
 
     # Query vector
     query_vector = torch.tensor(nlp(query)).mean(dim=1).numpy().flatten().reshape(1, -1)
-    print(f"Query vector shape: {query_vector.shape}")
+    logging.info(f"Query vector shape: {query_vector.shape}")
 
     # Search in FAISS index
     k = 10  # number of top relevant results to retrieve
@@ -139,7 +146,7 @@ def analyze_pdf():
     logging.info(f"Memory Usage: {memory_info.rss / (1024 * 1024)} MB")
     if gpu_info:
         logging.info(f"GPU Memory Usage: {gpu_info.memoryUsed} MB / {gpu_info.memoryTotal} MB")
-    
+
     end_time = time.time()
     logging.info(f"Processing time: {end_time - start_time} seconds")
 
