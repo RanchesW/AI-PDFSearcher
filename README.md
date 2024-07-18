@@ -68,10 +68,80 @@ def extract_text_from_image(image_path):
 
 ### Анализ текста с предварительно обученными моделями:
 
-qa_model: Модель для ответа на вопросы, которая может предоставлять ответы на вопросы, основанные на контексте, предоставленном из текста PDF.
-summarizer: Модель, которая генерирует резюме предоставленного текста.
-nlp: Используется для извлечения признаков для вычисления сходства текстов и поиска релевантных фрагментов в ответ на запрос пользователя.
+1. Подготавливает список предложений из текста:
+```
+sentences = [sent.strip() for sent in cleaned_text.split('.') if sent.strip()]
+```
+Разбивает текст `cleaned_text` на предложения по точке и удаляет пустые строки и пробелы.
 
+2. Создает векторное представление для каждого предложения:
+```
+sentence_vectors = []
+for sentence in sentences:
+    vec = torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten()
+    if vec.ndim == 1:
+        sentence_vectors.append(vec)
+    else:
+        print(f"Skipping sentence due to incorrect vector shape: {sentence}")
+```
+**Для каждого предложения:**
+
+- Преобразует предложение в векторное представление с использованием модели nlp.
+- Берет среднее значение вдоль первого измерения вектора и преобразует его в numpy массив.
+- Проверяет, что вектор имеет правильную форму (одномерный массив). Если это так, добавляет его в sentence_vectors, иначе пропускает предложение.
+- 
+3. Проверяет, удалось ли векторизовать предложения:
+  
+```
+if len(sentence_vectors) == 0:
+    return jsonify({"summary": "Failed to vectorize sentences."})
+```
+
+4. Преобразует список векторов в массив numpy:
+
+```
+sentence_vectors = np.array(sentence_vectors)
+print(f"Shape of sentence_vectors: {sentence_vectors.shape}")
+```
+
+5. Создает и добавляет векторы в FAISS индекс:
+
+```
+dimension = sentence_vectors.shape[1]
+index = faiss.IndexFlatL2(dimension)
+index.add(sentence_vectors)
+```
+- Определяет размерность векторов.
+- Создает индекс FAISS для поиска по близости (`IndexFlatL2`).
+- Добавляет векторы предложений в индекс.
+
+### Создание пользовательского запроса:
+
+```
+query_vector = torch.tensor(nlp(query)).mean(dim=1).numpy().flatten().reshape(1, -1)
+print(f"Query vector shape: {query_vector.shape}")
+```
+### Выполнения поиск в FAISS индексе
+```
+k = 10  # number of top relevant results to retrieve
+```
+
+Устанавливает значение k равным 10, что означает, что будут извлекаться 10 наиболее релевантных результатов.
+
+```
+distances, indices = index.search(query_vector, k)
+```
+
+Использует метод search индекса FAISS для поиска ближайших k векторов к query_vector. Возвращает расстояния до этих векторов и их индексы.
+
+```
+relevant_snippets = [sentences[i] for i in indices[0]]
+```
+Использует индексы, возвращенные FAISS, для извлечения соответствующих предложений из списка sentences.
+
+###
+``` 
+```                                                                                                                                                                                                                                                                              
 ### Веб-интерфейс:
 
 Позволяет пользователям загружать PDF-файлы и отправлять запросы о их содержимом.
