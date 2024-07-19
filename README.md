@@ -119,13 +119,33 @@
         return jsonify({"summary": "No relevant information found in the document."})
 ```
 
+### Токенизация текст
+
+Токенизации текста перед генерацией нового текста:
+
+```
+    input_ids = tokenizer.encode(combined_text, return_tensors="pt")
+    max_new_tokens = max(1, 500 - input_ids.shape[1])  # Ensure max_new_tokens is always at least 1
+```
+
++ Текст combined_text кодируется в тензор с использованием токенизатора tokenizer.
+
++ Определяется максимальное количество новых токенов для генерации, которое всегда будет не менее 1.
+
 ### LLaMA для очистки и исправления текста 
 
-Используйется модель LLaMA для очистки и исправления текста на основе переменной combined_text. Ограничивает длину генерируемого текста 500 символами:
+Этот код генерирует очищенный текст с помощью модели LLaMA, если указано положительное количество новых токенов для генерации. Если нет новых токенов для генерации, то используется оригинальный текст.:
 
 ```
-    cleaned_text = llama_model(combined_text, max_length=500)[0]['generated_text']
+    # Generate cleaned text
+    if max_new_tokens > 0:
+        cleaned_text = llama_model(combined_text, truncation=True, max_length=input_ids.shape[1] + max_new_tokens)[0]['generated_text']
+    else:
+        cleaned_text = combined_text  # Fallback to the original text if no new tokens can be generated
 ```
+
++ Если max_new_tokens больше 0, используется модель llama_model для генерации очищенного текста.
++ Если max_new_tokens равно 0, используется исходный текст combined_text.
 
 ### Подготовка индекса FAISS:
 
