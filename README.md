@@ -67,10 +67,16 @@
 - Сохраняет изображение в файл по указанному пути.
 
 ```
-    text = extract_text_from_image(image_path)
-    if text:
-        combined_text += " " + text
+    with ThreadPoolExecutor() as executor:
+    results = executor.map(extract_text_from_image, image_paths)
+    combined_text = " ".join(filter(None, results))
 ```
+
++ Создание пула потоков: ThreadPoolExecutor создается для параллельного выполнения задач.
+
++ Параллельная обработка изображений: Функция extract_text_from_image применяется к каждому пути изображения из списка image_paths, результаты извлечения текста собираются в results.
+
++ Объединение результатов: Все извлеченные текстовые строки объединяются в одну строку, исключая None результаты.
 
 Использует функцию extract_text_from_image для извлечения текста из сохраненных изображений. Если текст найден, добавляет его к переменной combined_text.
 
