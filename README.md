@@ -152,14 +152,9 @@
 1.  Преобразование предложений в векторы:
 ```
     sentences = [sent.strip() for sent in cleaned_text.split('.') if sent.strip()]
-    sentence_vectors = []
-    for sentence in sentences:
-        vec = torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten()
-        if vec.ndim == 1:
-            sentence_vectors.append(vec)
-        else:
-            print(f"Skipping sentence due to incorrect vector shape: {sentence}")
-
+    sentence_vectors = np.array([torch.tensor(nlp(sentence)).mean(dim=1).numpy().flatten() for sentence in sentences if sentence])
+    if len(sentence_vectors) == 0:
+        return jsonify({"summary": "Failed to vectorize sentences."})
 ```
 Разбивает текст `cleaned_text` на предложения по точке и удаляет пустые строки и пробелы.
 
