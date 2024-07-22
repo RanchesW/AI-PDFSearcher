@@ -15,6 +15,7 @@ from langdetect import detect, LangDetectException
 from nltk.tokenize import sent_tokenize, word_tokenize
 import nltk
 import difflib
+import shutil
 
 # Ensure NLTK data is downloaded
 nltk.download('punkt')
@@ -82,7 +83,7 @@ def analyze_pdf():
 
     # Clean up temporary files
     os.remove(temp_pdf_path)
-    os.rmdir(temp_dir)
+    shutil.rmtree(temp_dir)
 
     if not combined_text.strip():
         return jsonify({"summary": "No relevant information found in the document."})
@@ -135,26 +136,35 @@ def analyze_pdf():
         if not any(difflib.SequenceMatcher(None, snippet, filtered_snippet).ratio() > 0.7 for filtered_snippet in filtered_snippets):
             filtered_snippets.append(snippet)
 
-    # Create summary
-    combined_snippets = " ".join(filtered_snippets)
-    summary = create_summary(combined_snippets, query, max_length=500, min_length=200)  # Updated max and min lengths
-    print("Summary:", summary)
+    # Create summary from the most relevant snippet
+    if filtered_snippets:
+        summary = create_summary(filtered_snippets[0], max_length=100, min_length=30)
+        print("Summary:", summary)
+    else:
+        summary = "No relevant summary could be generated."
 
     return jsonify({"summary": summary})
 
-def create_summary(text, query, max_length=500, min_length=200):
-    max_chunk = 4096  # Increased maximum length of text chunk for summarization
+def create_summary(text, max_length=100, min_length=30):
+    if len(word_tokenize(text)) < min_length:
+        return text  # If the text is shorter than the minimum length, return it as is
+
+    max_chunk = 512  # Adjusted maximum length of text chunk for summarization
     text_chunks = [text[i:i + max_chunk] for i in range(0, len(text), max_chunk)]
     
     summarized_texts = []
     for chunk in text_chunks:
+        chunk_length = len(word_tokenize(chunk))
         print(f"Summarizing chunk: {chunk[:200]}...")  # Log the first part of the text chunk
-        summarized_text = summarizer(chunk, max_length=max_length, min_length=min_length, do_sample=False)
+
+        # Dynamically adjust max_length based on chunk length
+        adjusted_max_length = min(max_length, chunk_length)
+        summarized_text = summarizer(chunk, max_length=adjusted_max_length, min_length=min_length, do_sample=False)
         summarized_texts.append(summarized_text[0]['summary_text'])
     
     summary = " ".join(summarized_texts)
-    if len(word_tokenize(summary)) > 150:  # Increased token limit for summary
-        summary = " ".join(word_tokenize(summary)[:150])
+    if len(word_tokenize(summary)) > max_length:
+        summary = " ".join(word_tokenize(summary)[:max_length])
     return summary
 
 if __name__ == '__main__':
